@@ -1,3 +1,4 @@
+.idea*
 #
 #   tcprstat -- Extract stats about TCP response times
 #   Copyright (C) 2010  Ignacio Nin
