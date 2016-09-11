@@ -1,3 +1,11 @@
+TODO --------- 
+想添加 监控响应 时常，信息到监控列表，
+
+用Go 语言重写，并支持 发送监控信息到 db 里边，或者发送到 RabbitMq 存储，然后用grafan 展示
+Added @2016-09-11 
+
+
+
 Add Comment :
 
 tcprstat是percona用来监测mysql响应时间的。不过对于任何运行在TCP协议上的响应时间，都可以用。
