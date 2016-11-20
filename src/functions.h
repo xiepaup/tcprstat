@@ -26,6 +26,6 @@
 
 int dump_usage(FILE *stream);
 int dump_help(FILE *stream);
-int dump_version(FILE *stream);
+//int dump_version(FILE *stream);
 
 #endif

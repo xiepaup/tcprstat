@@ -34,7 +34,7 @@
 
 #define DEFAULT_SHOW_HEADER 1
 
-extern int port;
+extern int port;  // Extern 该关键字告诉编译器，其声明的函数和变量可以在本模块或其它模块中使用。
 extern char *program_name;
 extern time_t timestamp;
 

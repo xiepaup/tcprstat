@@ -1,0 +1,151 @@
+最近看的开源代码是有关网络监控的，它使用Libpcap进行抓包，然后处理。为了更好的理解代码的实现过程，我关注了Libpcap的抓包原理，至于详细的实现暂时还没有研究。
+
+1libpcap的工作原理
+
+1.1组成部分
+
+   libpcap主要由两部份组成：网络分接头(Network Tap)和数据过滤器(Packet Filter)。网络分接头从网络设备驱动程序中收集数据拷贝，过滤器决定是否接收该数据包。
+
+1.2过滤算法
+
+   Libpcap利用BSD Packet Filter(BPF)算法对网卡接收到的链路层数据包进行过滤。BPF算法的基本思想是在有BPF监听的网络中，网卡驱动将接收到的数据包复制一份交给BPF过滤器，过滤器根据用户定义的规则决定是否接收此数据包以及需要拷贝该数据包的那些内容，然后将过滤后的数据给与过滤器相关联的上层应用程序。
+
+1.3包捕获机制
+
+   libpcap的包捕获机制就是在数据链路层加一个旁路处理。当一个数据包到达网络接口时，libpcap首先利用已经创建的Socket从链路层驱动程序中获得该数据包的拷贝，再通过Tap函数将数据包发给BPF过滤器。BPF过滤器根据用户已经定义好的过滤规则对数据包进行逐一匹配，匹配成功则放入内核缓冲区，并传递给用户缓冲区，匹配失败则直接丢弃。如果没有设置过滤规则，所有数据包都将放入内核缓冲区，并传递给用户层缓冲区。
+
+ 1.4功能
+
+  其功能是通过网卡抓取网络以太网中的数据包。这个库为不同的平台提供了一致的c函数编程接口。libpcap 结构简单，使用方便；它提供了20多个api封装函数，我们利用这些api函数即可完成本网络探测器所需的网络数据包监听功能。
+
+2Libpcap开发库的应用
+
+网络统计软件
+入侵检测系统
+网络调试
+数据包过滤，支持过滤机制BPF
+1.3Libpcap开发库使用说明
+
+基于pcap的嗅探器程序的总体架构，其流程如下：
+
+ 1）选择嗅探接口：在Linux中，这可能是eth0，而在BSD系统中则可能是xl1等等。也可以用一个字符串来定义这个设备，或者采用pcap提供的接口名来工作。
+
+ 2）初始化pcap：告诉pcap对何设备进行嗅探，使用文件句柄进行设备的区分，必须命名该嗅探“会话”，以此使它们各自区别开来。
+
+3）创建规则集合：用于只想嗅探特定的传输，这个过程分为三个相互紧密关联的阶段。规则集合被置于一个字符串内，并且被转换成能被pcap读的格式(因此编译它)。编译实际上就是在程序里调用一个不被外部程序使用的函数。接下来告诉 pcap使用它来过滤出所要的那一个会话。(此步骤可选)
+
+4）进入主体执行循环：在这个阶段内pcap一直工作到它接收了所有我们想要的包为止。每当它收到一个包就调用另一个已经定义好的函数，这个函数可以实现任何要求，它可以剖析所部获的包并给用户打印出结果，它可以将结果保存为一个文件。
+
+5）关闭会话：在嗅探到所需的数据后，关闭会话并结束。
+
+
+
+
+4libpcap的抓包框架
+
+1）获取数据包捕获描述字
+
+函数名称：pcap_t *pcap_open_live(char *device, int snaplen, int promisc, int to_ms, char *ebuf)
+
+函数功能：获得用于捕获网络数据包的数据包捕获描述字。
+
+参数说明：device参数为指定打开的网络设备名。snaplen参数定义捕获数据的最大字节数。Promisc 指定是否将网络接口置于混杂模式。to_ms参数指*定超时时间（毫秒）。ebuf参数则仅在pcap_open_live()函数出错返回NULL时用于传递错误消息。
+
+2）打开保存捕获数据包文件
+
+函数名称：pcap_t *pcap_open_offline(char *fname, char *ebuf)
+
+函数功能：打开以前保存捕获数据包的文件，用于读取。
+
+参数说明：fname参数指定打开的文件名。该文件中的数据格式与tcpdump和tcpslice兼容。”-“为标准输入。ebuf参数则仅在pcap_open_offline()函数出错返回NULL时用于传递错误消息。
+
+3）转储数据包
+
+函数名称：pcap_dumper_t *pcap_dump_open(pcap_t *p, char *fname)
+
+函数功能：打开用于保存捕获数据包的文件，用于写入。
+
+参数说明：fname参数为”-“时表示标准输出。出错时返回NULL。p参数为调用pcap_open_offline()      或pcap_open_live()函数后返回的pcap结构指针，即网卡句柄。fname参数指定打开的文件名，存盘的文件名。如果返回NULL，则可调用pcap_geterr()函数获取错误消息。
+
+4）查找网络设备
+
+函数名称：char *pcap_lookupdev(char *errbuf)
+
+函数功能：用于返回可被pcap_open_live()或pcap_lookupnet()函数调用的网络设备名指针。
+
+返回值：如果函数出错，则返回NULL，同时errbuf中存放相关的错误消息。
+
+5）获取网络号和掩码
+
+函数名称：int pcap_lookupnet(char *device, bpf_u_int32 *netp,bpf_u_int32 *maskp, char *errbuf)
+
+函数功能：获得指定网络设备的网络号和掩码。
+
+参数说明：netp参数和maskp参数都是bpf_u_int32指针。
+
+返回值：如果函数出错，则返回-1，同时errbuf中存放相关的错误消息。
+
+6)捕获并处理数据包
+       函数名称：int pcap_dispatch(pcap_t *p, int cnt,pcap_handler callback, u_char *user)
+       函数功能：捕获并处理数据包。
+       参数说明：cnt参数指定函数返回前所处理数据包的最大值。cnt=  -1表示在一个缓冲区中处理所有的数据包。cnt=0表示处理所有数据包，直到产生以下错误之一：读取到EOF；超时读取。callback参数指定一个带有三个参数的回调函数，这三个参数为：一个从pcap_dispatch()函数传递过来的u_char指针，一个pcap_pkthdr结构的指针，和一个数据包大小的u_char指针。
+       返回值：如果成功则返回读取到的字节数。读取到EOF时则返回零值。出错时则返回-1，此时可调用pcap_perror()或pcap_geterr()函数获取错误消息。
+       7)捕获和处理数据包
+       函数名称：int pcap_loop(pcap_t *p, int cnt,pcap_handler callback, u_char *user)
+       函数功能：功能基本与pcap_dispatch()函数相同，只不过此函数在cnt个数据包被处理或出现错误时才返回，但读取超时不会返回。而如果为pcap_open_live()函数指定了一个非零值的超时设置，然后调用pcap_dispatch()函数，则当超时发生时pcap_dispatch()函数会返回。cnt参数为负值时pcap_loop()函数将始终循环运行，除非出现错误。
+       8)输出数据包
+      函数名称：void pcap_dump(u_char *user, struct pcap_pkthdr *h,u_char *sp)
+      函数功能：向调用pcap_dump_open()函数打开的文件输出一个数据包。该函数可作为pcap_dispatch()函数的回调函数。
+      参数说明: 参数1: 所建立的文件pcap_dump_open()的返回值,要进行强制转换.;参数2: 数据包特有的内容.;参数 3: 数据包内容指针
+
+9)编译字串至过滤程序
+
+函数名称：int pcap_compile(pcap_t *p, struct bpf_program *fp,char *str, int optimize, bpf_u_int32 netmask)
+       函数功能：将str参数指定的字符串编译到过滤程序中。
+       参数说明：fp是一个bpf_program结构的指针，在pcap_compile()函数中被赋值。optimize参数控制结果代码的优化。netmask参数指定本地网络的网络掩码。
+
+10)指定过滤程序
+       函数名称：int pcap_setfilter(pcap_t *p, struct bpf_program *fp)
+       函数功能：指定一个过滤程序。
+       参数说明：fp参数是bpf_program结构指针，通常取自pcap_compile()函数调用。
+       返回值：出错时返回-1；成功时返回0
+
+11)获取下一个数据包
+       函数名称：u_char *pcap_next(pcap_t *p, struct pcap_pkthdr *h)
+       函数功能：返回指向下一个数据包的u_char指针
+
+12)获取数据链路层类型
+      函数名称：int pcap_datalink(pcap_t *p)
+      函数功能：返回数据链路层类型，例如DLT_EN10MB
+
+13)获取快照参数值
+      函数名称：int pcap_snapshot(pcap_t *p)
+      函数功能：返回pcap_open_live被调用后的snapshot参数值
+
+14)检测字节顺序
+     函数名称：int pcap_is_swapped(pcap_t *p)
+     函数功能：返回当前系统主机字节与被打开文件的字节顺序是否不同
+
+15)获取主版本号
+    函数名称：int pcap_major_version(pcap_t *p)
+    函数功能：返回写入被打开文件所使用的pcap函数的主版本号
+
+16)获取辅版本号
+    函数名称：int pcap_minor_version(pcap_t *p)
+    函数功能：返回写入被打开文件所使用的pcap函数的辅版本号
+
+17)结构赋值
+   函数名称：int pcap_stats(pcap_t *p, struct pcap_stat *ps)
+   函数功能：向pcap_stat结构赋值。成功时返回0。这些数值包括了从开始捕获数据以来至今共捕获到的数据包统计。如果出错或不支持数据包统计，则返回-1，且可调用pcap_perror()或pcap_geterr()函数来获取错误消息。
+
+18)获取打开文件名
+    函数名称：FILE *pcap_file(pcap_t *p)
+    函数功能：返回被打开文件的文件名。
+
+19)获取描述字号码
+    函数名称：int pcap_fileno(pcap_t *p)
+    函数功能：返回被打开文件的文件描述字号码。
+
+ 20)显示错误消息
+    函数名称：void pcap_perror(pcap_t *p, char *prefix)
+    函数功能：在标准输出设备上显示最后一个pcap库错误消息。以prefix参数指定的字符串为消息头。

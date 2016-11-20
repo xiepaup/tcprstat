@@ -104,6 +104,9 @@ parse_addresses(char addresses[]) {
             abort();
         
         strncpy(current, next, (comma - next));
+        //strncpy()会将字符串src前n个字符拷贝到字符串dest|char * strncpy(char *dest, const char *src, size_t n)
+        //不像strcpy()，strncpy()不会向dest追加结束标记'\0'，这就引发了很多不合常理的问题，将在下面的示例中说明。
+        //strcpy() 把src所指的由NULL结束的字符串复制到dest 所指的数组中，返回指向 dest 字符串的起始地址。
         current[comma - next] = '\0';
 
         address_list_curr->next = malloc(sizeof(struct address_list));

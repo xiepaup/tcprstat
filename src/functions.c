@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include <pcap.h>
 
-#include "config.h"
+//#include "config.h"
 #include "functions.h"
 #include "tcprstat.h"
 
@@ -92,11 +92,11 @@ dump_help(FILE *stream) {
 
 }
 
-int
-dump_version(FILE *stream) {
-    fprintf(stream, "%s %s, %s.\n", PACKAGE_NAME, PACKAGE_VERSION,
-            pcap_lib_version());
-
-    return 0;
-
-}
+//int
+//dump_version(FILE *stream) {
+//    fprintf(stream, "%s %s, %s.\n", PACKAGE_NAME, PACKAGE_VERSION,
+//            pcap_lib_version());
+//
+//    return 0;
+//
+//}
